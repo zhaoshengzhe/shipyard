@@ -1,7 +1,7 @@
 CGO_ENABLED=0
 GOOS=linux
 GOARCH=amd64
-TAG=${TAG:-latest}
+TAG=${TAG:-test}
 COMMIT=`git rev-parse --short HEAD`
 
 all: build media
@@ -10,7 +10,7 @@ clean:
 	@rm -rf controller/controller
 
 build:
-	@cd controller && godep go build -a -tags "netgo static_build" -installsuffix netgo -ldflags "-w -X github.com/shipyard/shipyard/version.GitCommit=$(COMMIT)" .
+	@cd controller && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 godep go build -a -tags "netgo static_build" -installsuffix netgo -ldflags "-w -X github.com/shipyard/shipyard/version.GitCommit=$(COMMIT)" .
 
 remote-build:
 	@docker build -t shipyard-build -f Dockerfile.build .
@@ -18,19 +18,16 @@ remote-build:
 	@cd controller && docker run --rm -w /go/src/github.com/shipyard/shipyard --entrypoint /bin/bash shipyard-build -c "make build 1>&2 && cd controller && tar -czf - controller" | tar zxf -
 
 media:
-	@cd controller/static && bower -s install --allow-root -p | xargs echo > /dev/null
+	@cd controller/static &&sudo bower -s install --allow-root -p | xargs echo > /dev/null
 
 image: media build
 	@echo Building Shipyard image $(TAG)
-	@cd controller && docker build -t="zhaoshengz/shipyard" .
+	@cd controller && docker build -t shipyard//shipyard:$(TAG) .
 
 release: build image
-	@docker push shipyard/shipyard:$(TAG)
+	@docker push shipyard/shipyard:test
 
 test: clean 
 	@godep go test -v ./...
-
-testrun:
-	@cd controller 	&& ./controller --debug server --rethinkdb-addr=${IP}:28015 -d tcp://192.168.59.103:2376
 
 .PHONY: all build clean media image test release
